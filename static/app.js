@@ -1,7 +1,7 @@
 /**
  * Voice Notes Reminder Agent - Frontend Engine
- * Connects Web Speech API (STT & TTS), WebSocket real-time updates,
- * and FastAPI REST endpoints to the industrial UI chassis.
+ * Powered by local faster-whisper backend transcription, Web Audio API,
+ * WebSocket real-time alerts, and FastAPI REST endpoints.
  */
 
 let currentState = 'ready';
@@ -10,23 +10,30 @@ let isMuted = false;
 let currentFilter = 'ALL';
 let timerInterval = null;
 let elapsedSeconds = 0;
-let recognition = null;
 let currentDueReminderId = null;
 
-// Audio context for hardware alert chimes
-let audioCtx = null;
+// MediaRecorder and Web Audio API handles
+let mediaRecorder = null;
+let audioChunks = [];
+let micStream = null;
+let audioContext = null;
+let analyserNode = null;
+let animFrameId = null;
 
-function getAudioContext() {
-  if (!audioCtx) {
-    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+// Audio context for hardware alert chimes
+let chimeAudioCtx = null;
+
+function getChimeContext() {
+  if (!chimeAudioCtx) {
+    chimeAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
   }
-  return audioCtx;
+  return chimeAudioCtx;
 }
 
 function playHardwareChime(frequency = 880, duration = 0.25) {
   if (isMuted) return;
   try {
-    const ctx = getAudioContext();
+    const ctx = getChimeContext();
     if (ctx.state === 'suspended') {
       ctx.resume();
     }
@@ -73,87 +80,147 @@ function toggleMute() {
 }
 
 // ---------------------------------------------------------------------------
-// 2. Web Speech Recognition (STT)
+// 2. Local Whisper MediaRecorder Audio Capture & VU Meter
 // ---------------------------------------------------------------------------
 
-function initSpeechRecognition() {
-  const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SpeechRec) {
-    console.warn("Web SpeechRecognition is not supported in this browser.");
-    return null;
-  }
-  const rec = new SpeechRec();
-  rec.continuous = false;
-  rec.interimResults = true;
-  rec.lang = 'en-US';
+async function startAudioRecording() {
+  try {
+    micStream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        channelCount: 1,
+        sampleRate: 16000,
+        echoCancellation: true,
+        noiseSuppression: true,
+      }
+    });
 
-  rec.onstart = () => {
-    setRecorderState('listening');
-  };
+    // Real-time microphone audio level monitoring for hardware VU meter
+    try {
+      const AudioCtxClass = window.AudioContext || window.webkitAudioContext;
+      audioContext = new AudioCtxClass();
+      if (audioContext.state === 'suspended') {
+        await audioContext.resume();
+      }
+      const source = audioContext.createMediaStreamSource(micStream);
+      analyserNode = audioContext.createAnalyser();
+      analyserNode.fftSize = 64;
+      analyserNode.smoothingTimeConstant = 0.5;
+      source.connect(analyserNode);
+      startLiveVuMonitoring();
+    } catch (e) {
+      console.warn("Could not initialize microphone analyser:", e);
+    }
 
-  rec.onresult = (event) => {
-    let interim = '';
-    let finalTranscript = '';
-
-    for (let i = event.resultIndex; i < event.results.length; ++i) {
-      if (event.results[i].isFinal) {
-        finalTranscript += event.results[i][0].transcript;
+    // Determine supported mime type
+    let mimeType = 'audio/webm;codecs=opus';
+    if (!MediaRecorder.isTypeSupported(mimeType)) {
+      if (MediaRecorder.isTypeSupported('audio/webm')) {
+        mimeType = 'audio/webm';
+      } else if (MediaRecorder.isTypeSupported('audio/mp4')) {
+        mimeType = 'audio/mp4';
+      } else if (MediaRecorder.isTypeSupported('audio/ogg')) {
+        mimeType = 'audio/ogg';
       } else {
-        interim += event.results[i][0].transcript;
+        mimeType = '';
       }
     }
 
-    const transcriptEl = document.getElementById('transcript-content');
-    if (finalTranscript) {
-      transcriptEl.innerHTML = `“${finalTranscript}”<span class="inline-block w-2 h-3.5 bg-secondary ml-1 animate-pulse"></span>`;
-      handleVoiceCommand(finalTranscript);
-    } else if (interim) {
-      transcriptEl.innerHTML = `“${interim}”<span class="inline-block w-2 h-3.5 bg-primary ml-1 animate-pulse"></span>`;
-    }
-  };
+    const options = mimeType ? { mimeType } : {};
+    mediaRecorder = new MediaRecorder(micStream, options);
+    audioChunks = [];
 
-  rec.onerror = (event) => {
-    console.error("Speech recognition error:", event.error);
+    mediaRecorder.ondataavailable = (event) => {
+      if (event.data && event.data.size > 0) {
+        audioChunks.push(event.data);
+      }
+    };
+
+    mediaRecorder.onstop = async () => {
+      stopLiveVuMonitoring();
+      if (micStream) {
+        micStream.getTracks().forEach(track => track.stop());
+        micStream = null;
+      }
+      if (audioChunks.length === 0) {
+        setRecorderState('ready');
+        return;
+      }
+
+      const recordedBlob = new Blob(audioChunks, { type: mediaRecorder.mimeType || 'audio/webm' });
+      await processRecordedAudio(recordedBlob);
+    };
+
+    mediaRecorder.start(200); // 200ms slice
+    setRecorderState('listening');
+
+  } catch (err) {
+    console.error("Microphone access error:", err);
     setRecorderState('error');
     const transcriptEl = document.getElementById('transcript-content');
-    if (event.error === 'not-allowed') {
-      transcriptEl.innerHTML = '<span class="text-error font-bold">Microphone permission denied. Please allow mic access in your browser settings.</span>';
-    } else if (event.error === 'no-speech') {
-      transcriptEl.innerHTML = '<span class="text-error font-bold">No speech detected. Press the mic button and speak clearly.</span>';
-    } else {
-      transcriptEl.innerHTML = `<span class="text-error font-bold">Speech recognition error: ${event.error}</span>`;
+    if (transcriptEl) {
+      transcriptEl.innerHTML = '<span class="text-error font-bold">Microphone permission denied. Please allow mic access.</span>';
     }
-  };
-
-  rec.onend = () => {
-    if (currentState === 'listening') {
-      setRecorderState('ready');
-    }
-  };
-
-  return rec;
+  }
 }
 
-// ---------------------------------------------------------------------------
-// 3. UI State Management & VU Meter
-// ---------------------------------------------------------------------------
+function stopAudioRecording() {
+  if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+    mediaRecorder.stop();
+  }
+}
 
-function updateVuRandom() {
-  if (currentState === 'listening') {
+function startLiveVuMonitoring() {
+  if (!analyserNode) return;
+  const dataArray = new Uint8Array(analyserNode.frequencyBinCount);
+
+  function checkLevel() {
+    if (currentState !== 'listening' || !analyserNode) {
+      return;
+    }
+    analyserNode.getByteFrequencyData(dataArray);
+    let sum = 0;
+    for (let i = 0; i < dataArray.length; i++) {
+      sum += dataArray[i];
+    }
+    const average = sum / dataArray.length;
+    // Map average (0 - 255) to 0 - 8 bars
+    const barsCount = Math.min(8, Math.max(1, Math.floor((average / 110) * 8)));
+
     const bars = document.querySelectorAll('#vu-meter .vu-bar');
-    const activeCount = Math.floor(Math.random() * 5) + 3;
     bars.forEach((b, i) => {
-      if (i < activeCount) {
+      if (i < barsCount) {
         b.className = (i > 5) ? 'vu-bar bg-secondary h-full' : 'vu-bar bg-primary h-full';
       } else {
         b.className = 'vu-bar bg-outline-variant h-full';
       }
     });
-    const dBs = ['-6.2 dB', '-4.1 dB', '-8.9 dB', '-2.4 dB', '-12.0 dB'];
-    document.getElementById('vu-db-readout').textContent = dBs[Math.floor(Math.random() * dBs.length)];
+
+    const dbValue = average > 0 ? (20 * Math.log10(average / 255)).toFixed(0) : -60;
+    const dbEl = document.getElementById('vu-db-readout');
+    if (dbEl) dbEl.textContent = `${dbValue} dB`;
+
+    animFrameId = requestAnimationFrame(checkLevel);
   }
+
+  checkLevel();
 }
-setInterval(updateVuRandom, 150);
+
+function stopLiveVuMonitoring() {
+  if (animFrameId) {
+    cancelAnimationFrame(animFrameId);
+    animFrameId = null;
+  }
+  const bars = document.querySelectorAll('#vu-meter .vu-bar');
+  bars.forEach((b, i) => {
+    b.className = (i < 2) ? 'vu-bar bg-primary h-full' : 'vu-bar bg-outline-variant h-full';
+  });
+  const dbEl = document.getElementById('vu-db-readout');
+  if (dbEl) dbEl.textContent = '-18 dB';
+}
+
+// ---------------------------------------------------------------------------
+// 3. UI State Management
+// ---------------------------------------------------------------------------
 
 function setRecorderState(state) {
   currentState = state;
@@ -164,18 +231,6 @@ function setRecorderState(state) {
   const coreLabel = document.getElementById('mic-core-label');
   const needle = document.getElementById('rotary-needle');
   const transcript = document.getElementById('transcript-content');
-
-  // Update state switcher buttons highlight
-  ['ready', 'listening', 'processing', 'error'].forEach(s => {
-    const btn = document.getElementById('btn-state-' + s);
-    if (btn) {
-      if (s === state) {
-        btn.className = 'font-label-sm text-label-sm px-2 py-0.5 uppercase bg-primary text-on-primary';
-      } else {
-        btn.className = 'font-label-sm text-label-sm px-2 py-0.5 uppercase text-on-surface hover:bg-surface-container-high';
-      }
-    }
-  });
 
   clearInterval(timerInterval);
 
@@ -199,7 +254,7 @@ function setRecorderState(state) {
     if (coreLabel) coreLabel.textContent = 'STOP';
     if (coreBtn) coreBtn.className = 'w-24 h-24 rounded-full border-2 border-secondary bg-secondary text-on-secondary flex flex-col items-center justify-center gap-1 transition-none';
     if (needle) needle.style.transform = 'translateX(-50%) rotate(180deg)';
-    if (transcript) transcript.innerHTML = 'Listening... speak now.<span class="inline-block w-2 h-3.5 bg-secondary ml-1 animate-pulse"></span>';
+    if (transcript) transcript.innerHTML = 'Listening... Speak your reminder, then click STOP or press Spacebar.<span class="inline-block w-2 h-3.5 bg-secondary ml-1 animate-pulse"></span>';
 
     timerInterval = setInterval(() => {
       elapsedSeconds += 0.1;
@@ -211,7 +266,7 @@ function setRecorderState(state) {
     isListening = false;
     if (led) led.className = 'w-2.5 h-2.5 rounded-full bg-primary inline-block animate-pulse';
     if (statusText) statusText.textContent = 'PROCESSING';
-    if (heroText) heroText.textContent = 'PROCESSING...';
+    if (heroText) heroText.textContent = 'TRANSCRIBING...';
     if (coreLabel) coreLabel.textContent = 'WAIT';
     if (coreBtn) coreBtn.className = 'w-24 h-24 rounded-full border border-primary bg-surface-container-high flex flex-col items-center justify-center gap-1 transition-none';
     if (needle) needle.style.transform = 'translateX(-50%) rotate(90deg)';
@@ -228,29 +283,68 @@ function setRecorderState(state) {
 
 function toggleListening() {
   if (currentState === 'listening') {
-    if (recognition) {
-      try { recognition.stop(); } catch (e) {}
-    }
-    setRecorderState('ready');
+    stopAudioRecording();
   } else {
-    if (!recognition) {
-      recognition = initSpeechRecognition();
-    }
-    if (recognition) {
-      try {
-        recognition.start();
-      } catch (err) {
-        console.warn("Recognition already started or error:", err);
-      }
-    } else {
-      alert("Web Speech API is not supported in this browser. Please use Google Chrome, Microsoft Edge, or Safari.");
-    }
+    startAudioRecording();
   }
 }
 
 // ---------------------------------------------------------------------------
-// 4. API Communication & Command Execution
+// 4. API Communication & Whisper Processing
 // ---------------------------------------------------------------------------
+
+async function processRecordedAudio(audioBlob) {
+  setRecorderState('processing');
+  const transcriptEl = document.getElementById('transcript-content');
+  if (transcriptEl) {
+    transcriptEl.innerHTML = 'Transcribing with local Whisper AI...<span class="inline-block w-2 h-3.5 bg-primary ml-1 animate-pulse"></span>';
+  }
+
+  try {
+    const formData = new FormData();
+    formData.append('file', audioBlob, 'voice_command.webm');
+
+    const response = await fetch('/api/voice-command', {
+      method: 'POST',
+      body: formData,
+    });
+
+    const data = await response.json();
+    setRecorderState('ready');
+
+    // Update transcript view with recognized text
+    if (transcriptEl) {
+      if (data.transcript) {
+        transcriptEl.innerHTML = `“${escapeHtml(data.transcript)}”<span class="inline-block w-2 h-3.5 bg-secondary ml-1"></span>`;
+      } else {
+        transcriptEl.innerHTML = `“${escapeHtml(data.reply || 'Audio processed.')}”`;
+      }
+    }
+
+    // Update Agent Response card
+    updateAgentResponse(data);
+
+    // Speak response aloud
+    if (data.reply) {
+      speakReply(data.reply);
+    }
+
+    // Refresh queue
+    refreshQueue();
+
+  } catch (error) {
+    console.error("Error processing audio command:", error);
+    setRecorderState('error');
+    if (transcriptEl) {
+      transcriptEl.innerHTML = '<span class="text-error font-bold">Failed to process audio with local Whisper.</span>';
+    }
+    updateAgentResponse({
+      reply: "Failed to connect to backend transcription service.",
+      intent: "error",
+      success: false,
+    });
+  }
+}
 
 async function handleVoiceCommand(transcript) {
   setRecorderState('processing');
@@ -265,15 +359,12 @@ async function handleVoiceCommand(transcript) {
     const data = await response.json();
     setRecorderState('ready');
 
-    // Update Agent Response Cassette
     updateAgentResponse(data);
 
-    // Speak response aloud
     if (data.reply) {
       speakReply(data.reply);
     }
 
-    // Refresh queue
     refreshQueue();
 
   } catch (error) {
@@ -320,7 +411,7 @@ function updateAgentResponse(data) {
 
 async function refreshQueue() {
   const counter = document.getElementById('queue-count-display');
-  if (counter) counter.textContent = 'SYNCING RTC...';
+  if (counter) counter.textContent = 'SYNCING...';
 
   try {
     const response = await fetch('/api/reminders');
@@ -336,7 +427,6 @@ async function refreshQueue() {
 function setFilter(filterType) {
   currentFilter = filterType;
 
-  // Highlight active filter tab
   const tabs = {
     'ALL': document.getElementById('filter-all'),
     'TODAY': document.getElementById('filter-today'),
@@ -363,7 +453,6 @@ function renderReminders(reminders) {
   const now = new Date();
   const todayDateStr = now.toISOString().split('T')[0];
 
-  // Apply active tab filter
   let filtered = reminders;
   if (currentFilter === 'PENDING') {
     filtered = reminders.filter(r => r.status === 'pending');
@@ -393,7 +482,6 @@ function renderReminders(reminders) {
       row.className = 'hover:bg-surface-container transition-none';
     }
 
-    // Format human date
     let formattedDue = r.due_at || '';
     try {
       const dt = new Date(r.due_at);
@@ -402,7 +490,6 @@ function renderReminders(reminders) {
       formattedDue = `${dateStr} ${timeStr}`;
     } catch (e) {}
 
-    // Badge status
     let statusBadge = '';
     if (isDue) {
       statusBadge = `
@@ -526,7 +613,7 @@ function setQueueView(mode) {
 function injectPrompt(rawText) {
   const transcriptEl = document.getElementById('transcript-content');
   if (transcriptEl) {
-    transcriptEl.innerHTML = `&ldquo;${rawText}&rdquo;<span class="inline-block w-2 h-3.5 bg-secondary ml-1 animate-pulse"></span>`;
+    transcriptEl.innerHTML = `“${escapeHtml(rawText)}”<span class="inline-block w-2 h-3.5 bg-secondary ml-1 animate-pulse"></span>`;
   }
   handleVoiceCommand(rawText);
 }
@@ -583,11 +670,9 @@ function triggerAlarm(reminder) {
     banner.classList.remove('hidden');
   }
 
-  // Play hardware chime and speak announcement
   playHardwareChime(960, 0.4);
   speakReply(`Reminder: ${reminder.task} is due now.`);
 
-  // Browser desktop notification if permitted
   if (window.Notification && Notification.permission === 'granted') {
     new Notification("Voice Reminder Due!", {
       body: reminder.task,
@@ -608,7 +693,6 @@ function dismissAlert() {
 function snoozeAlert(minutes = 5) {
   dismissAlert();
   if (currentDueReminderId) {
-    // Re-schedule reminder in X minutes via command
     handleVoiceCommand(`Remind me to follow up in ${minutes} minutes.`);
   }
 }
@@ -626,7 +710,7 @@ function requestNotificationPermission() {
     Notification.requestPermission().then(permission => {
       const btn = document.getElementById('notify-btn');
       if (btn) {
-        btn.textContent = permission === 'granted' ? '[NOTIFICATIONS: ON]' : '[NOTIFICATIONS: DENIED]';
+        btn.textContent = permission === 'granted' ? 'NOTIFICATIONS: ON' : 'NOTIFICATIONS: OFF';
       }
     });
   }
@@ -650,6 +734,9 @@ window.addEventListener('keydown', (e) => {
     toggleListening();
   } else if (e.code === 'Escape') {
     e.preventDefault();
+    if (currentState === 'listening') {
+      stopAudioRecording();
+    }
     setRecorderState('ready');
   } else if (e.key === 'r' || e.key === 'R') {
     refreshQueue();
@@ -659,7 +746,6 @@ window.addEventListener('keydown', (e) => {
 });
 
 document.addEventListener('DOMContentLoaded', () => {
-  recognition = initSpeechRecognition();
   connectWebSocket();
   refreshQueue();
 });

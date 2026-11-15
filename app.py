@@ -6,12 +6,13 @@ from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import List, Dict, Any, Optional
 
-from fastapi import FastAPI, Request, HTTPException, WebSocket, WebSocketDisconnect, status
+from fastapi import FastAPI, Request, HTTPException, WebSocket, WebSocketDisconnect, status, File, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 import storage
+import transcriber
 from schemas import (
     Reminder,
     ReminderStatusUpdate,
@@ -84,6 +85,69 @@ async def get_index(request: Request):
     return templates.TemplateResponse(request=request, name="index.html")
 
 
+@app.post("/api/transcribe")
+async def transcribe_audio_endpoint(file: UploadFile = File(...)):
+    """Transcribe an uploaded audio file using the local Whisper model."""
+    try:
+        content = await file.read()
+        if not content:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Empty audio payload received.",
+            )
+        filename = file.filename or "recording.webm"
+        ext = os.path.splitext(filename)[1] or ".webm"
+        transcript = transcriber.transcribe_audio_bytes(content, ext)
+        return {"transcript": transcript}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error(f"Transcription error: {exc}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Transcription failed: {exc}",
+        )
+
+
+@app.post("/api/voice-command", response_model=CommandResponse)
+async def process_voice_audio_command(file: UploadFile = File(...)):
+    """
+    Accept an audio recording file directly, transcribe it via local Whisper,
+    and process the resulting transcript into a reminder action.
+    """
+    try:
+        content = await file.read()
+        if not content:
+            content_resp = CommandResponse(
+                intent="unknown",
+                reply="Empty audio recording received.",
+                success=False,
+            ).model_dump()
+            return JSONResponse(status_code=status.HTTP_400_BAD_REQUEST, content=content_resp)
+
+        filename = file.filename or "recording.webm"
+        ext = os.path.splitext(filename)[1] or ".webm"
+        transcript = transcriber.transcribe_audio_bytes(content, ext)
+
+        if not transcript:
+            content_resp = CommandResponse(
+                intent="unknown",
+                reply="No speech could be recognized. Please try speaking again.",
+                success=False,
+            ).model_dump()
+            return JSONResponse(status_code=status.HTTP_400_BAD_REQUEST, content=content_resp)
+
+        return await process_voice_command(CommandRequest(transcript=transcript))
+    except Exception as exc:
+        logger.error(f"Voice audio command error: {exc}")
+        content_resp = CommandResponse(
+            intent="unknown",
+            reply="Failed to process voice audio recording.",
+            success=False,
+        ).model_dump()
+        return JSONResponse(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, content=content_resp)
+
+
 @app.post("/api/command", response_model=CommandResponse)
 async def process_voice_command(body: CommandRequest):
     """
@@ -150,6 +214,7 @@ async def process_voice_command(body: CommandRequest):
                 due_at=due_at,
                 reply=reply_msg,
                 success=True,
+                transcript=transcript,
                 reminder=Reminder(**created),
             )
         except Exception as exc:
@@ -177,6 +242,7 @@ async def process_voice_command(body: CommandRequest):
                 intent="list_reminders",
                 reply=reply_msg,
                 success=True,
+                transcript=transcript,
                 reminders=[Reminder(**r) for r in all_reminders],
             )
         except Exception as exc:
@@ -203,6 +269,7 @@ async def process_voice_command(body: CommandRequest):
                 intent="list_pending_reminders",
                 reply=reply_msg,
                 success=True,
+                transcript=transcript,
                 reminders=[Reminder(**r) for r in pending],
             )
         except Exception as exc:
@@ -229,6 +296,7 @@ async def process_voice_command(body: CommandRequest):
                     intent="delete_last_reminder",
                     reply=reply_msg,
                     success=True,
+                    transcript=transcript,
                     reminder=Reminder(**deleted),
                 )
             else:
@@ -237,6 +305,7 @@ async def process_voice_command(body: CommandRequest):
                     intent="delete_last_reminder",
                     reply=reply_msg,
                     success=False,
+                    transcript=transcript,
                 )
         except Exception as exc:
             logger.error(f"Error deleting last reminder: {exc}")
@@ -270,6 +339,7 @@ async def process_voice_command(body: CommandRequest):
                     intent="delete_reminder_by_id",
                     reply=reply_msg,
                     success=True,
+                    transcript=transcript,
                     reminder=Reminder(**deleted),
                 )
             else:
@@ -278,6 +348,7 @@ async def process_voice_command(body: CommandRequest):
                     intent="delete_reminder_by_id",
                     reply=reply_msg,
                     success=False,
+                    transcript=transcript,
                 ).model_dump()
                 return JSONResponse(status_code=status.HTTP_404_NOT_FOUND, content=content)
         except Exception as exc:

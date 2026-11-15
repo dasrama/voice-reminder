@@ -110,3 +110,37 @@ def test_get_and_patch_reminders_rest(client):
     # DELETE again should return 404
     res_del_404 = client.delete(f"/api/reminders/{rem_id}")
     assert res_del_404.status_code == 404
+
+
+def test_post_transcribe_endpoint(client, monkeypatch):
+    # Mock transcriber.transcribe_audio_bytes to avoid heavy model inference in unit test
+    monkeypatch.setattr(
+        "transcriber.transcribe_audio_bytes",
+        lambda data, ext: "Remind me to take a break in 10 minutes.",
+    )
+    fake_audio = b"RIFF....WAVEfmt ...."
+    response = client.post(
+        "/api/transcribe",
+        files={"file": ("test.wav", fake_audio, "audio/wav")},
+    )
+    assert response.status_code == 200
+    assert response.json()["transcript"] == "Remind me to take a break in 10 minutes."
+
+
+def test_post_voice_command_endpoint(client, monkeypatch):
+    monkeypatch.setattr(
+        "transcriber.transcribe_audio_bytes",
+        lambda data, ext: "Remind me to submit the assignment today at 6 PM.",
+    )
+    fake_audio = b"RIFF....WAVEfmt ...."
+    response = client.post(
+        "/api/voice-command",
+        files={"file": ("test.webm", fake_audio, "audio/webm")},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["success"] is True
+    assert data["intent"] == "add_reminder"
+    assert "submit the assignment" in data["task"].lower()
+    assert data["reminder"] is not None
+

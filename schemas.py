@@ -37,6 +37,7 @@ class CommandResponse(BaseModel):
     due_at: Optional[str] = Field(default=None, description="Extracted due datetime in ISO 8601 format")
     reply: str = Field(..., description="Spoken/text response for the user")
     success: bool = Field(default=True, description="Whether the command succeeded")
+    transcript: Optional[str] = Field(default=None, description="Transcribed voice command string")
     reminder: Optional[Reminder] = Field(default=None, description="Affected single reminder if applicable")
     reminders: Optional[List[Reminder]] = Field(default=None, description="List of reminders if queried")
 
