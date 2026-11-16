@@ -226,10 +226,7 @@ function startLiveVuMonitoring() {
       }
     });
 
-    const dbEl = document.getElementById('vu-db-readout');
-    if (dbEl) {
-      dbEl.textContent = `${Math.round(db)} dB`;
-    }
+
 
     animFrameId = requestAnimationFrame(checkLevel);
   }
