@@ -2,11 +2,11 @@
 __pycache__
 *.pyc
 # Virtual environment
-.venv/
-
+venv/
+docs/
 # Testing cache
 .pytest_cache/
-
+.python-version
 # Local environment file
 .env
 
