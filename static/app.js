@@ -18,7 +18,9 @@ let audioChunks = [];
 let micStream = null;
 let audioContext = null;
 let analyserNode = null;
+let dummyGainNode = null;
 let animFrameId = null;
+let isMonitoringVu = false;
 
 // Audio context for hardware alert chimes
 let chimeAudioCtx = null;
@@ -97,16 +99,23 @@ async function startAudioRecording() {
     // Real-time microphone audio level monitoring for hardware VU meter
     try {
       const AudioCtxClass = window.AudioContext || window.webkitAudioContext;
-      audioContext = new AudioCtxClass();
+      if (!audioContext || audioContext.state === 'closed') {
+        audioContext = new AudioCtxClass();
+      }
       if (audioContext.state === 'suspended') {
         await audioContext.resume();
       }
       const source = audioContext.createMediaStreamSource(micStream);
       analyserNode = audioContext.createAnalyser();
-      analyserNode.fftSize = 64;
-      analyserNode.smoothingTimeConstant = 0.5;
+      analyserNode.fftSize = 512;
+      analyserNode.smoothingTimeConstant = 0.3;
+
+      // Connect through a silent gain node to destination to ensure Chrome/WebKit pulls audio frames
+      dummyGainNode = audioContext.createGain();
+      dummyGainNode.gain.value = 0;
       source.connect(analyserNode);
-      startLiveVuMonitoring();
+      analyserNode.connect(dummyGainNode);
+      dummyGainNode.connect(audioContext.destination);
     } catch (e) {
       console.warn("Could not initialize microphone analyser:", e);
     }
@@ -152,6 +161,7 @@ async function startAudioRecording() {
 
     mediaRecorder.start(200); // 200ms slice
     setRecorderState('listening');
+    startLiveVuMonitoring();
 
   } catch (err) {
     console.error("Microphone access error:", err);
@@ -171,20 +181,41 @@ function stopAudioRecording() {
 
 function startLiveVuMonitoring() {
   if (!analyserNode) return;
-  const dataArray = new Uint8Array(analyserNode.frequencyBinCount);
+  isMonitoringVu = true;
+  const bufferLength = analyserNode.fftSize;
+  const samples = new Float32Array(bufferLength);
 
   function checkLevel() {
-    if (currentState !== 'listening' || !analyserNode) {
+    if (!isMonitoringVu || !analyserNode) {
       return;
     }
-    analyserNode.getByteFrequencyData(dataArray);
-    let sum = 0;
-    for (let i = 0; i < dataArray.length; i++) {
-      sum += dataArray[i];
+
+    analyserNode.getFloatTimeDomainData(samples);
+
+    // Compute Root-Mean-Square (RMS) amplitude
+    let sumSquares = 0;
+    for (let i = 0; i < samples.length; i++) {
+      sumSquares += samples[i] * samples[i];
     }
-    const average = sum / dataArray.length;
-    // Map average (0 - 255) to 0 - 8 bars
-    const barsCount = Math.min(8, Math.max(1, Math.floor((average / 110) * 8)));
+    const rms = Math.sqrt(sumSquares / samples.length);
+
+    // Decibels relative to Full Scale (dBFS), bounded between -60 dB and 0 dB
+    const db = rms > 0.0001 ? Math.max(-60, Math.min(0, 20 * Math.log10(rms))) : -60;
+
+    // Map decibels smoothly to 8 physical VU bars:
+    // Silence/Room noise: <= -48 dB (0-1 bar)
+    // Soft speech: -35 dB to -24 dB (2-4 bars)
+    // Normal conversational voice: -22 dB to -14 dB (4-6 bars)
+    // Loud / speaking close: -12 dB to -2 dB (7-8 bars)
+    let barsCount = 0;
+    if (db > -50) barsCount = 1;
+    if (db > -42) barsCount = 2;
+    if (db > -34) barsCount = 3;
+    if (db > -26) barsCount = 4;
+    if (db > -20) barsCount = 5;
+    if (db > -14) barsCount = 6;
+    if (db > -8)  barsCount = 7;
+    if (db > -3)  barsCount = 8;
 
     const bars = document.querySelectorAll('#vu-meter .vu-bar');
     bars.forEach((b, i) => {
@@ -195,27 +226,29 @@ function startLiveVuMonitoring() {
       }
     });
 
-    const dbValue = average > 0 ? (20 * Math.log10(average / 255)).toFixed(0) : -60;
     const dbEl = document.getElementById('vu-db-readout');
-    if (dbEl) dbEl.textContent = `${dbValue} dB`;
+    if (dbEl) {
+      dbEl.textContent = `${Math.round(db)} dB`;
+    }
 
     animFrameId = requestAnimationFrame(checkLevel);
   }
 
-  checkLevel();
+  animFrameId = requestAnimationFrame(checkLevel);
 }
 
 function stopLiveVuMonitoring() {
+  isMonitoringVu = false;
   if (animFrameId) {
     cancelAnimationFrame(animFrameId);
     animFrameId = null;
   }
   const bars = document.querySelectorAll('#vu-meter .vu-bar');
-  bars.forEach((b, i) => {
-    b.className = (i < 2) ? 'vu-bar bg-primary h-full' : 'vu-bar bg-outline-variant h-full';
+  bars.forEach((b) => {
+    b.className = 'vu-bar bg-outline-variant h-full';
   });
   const dbEl = document.getElementById('vu-db-readout');
-  if (dbEl) dbEl.textContent = '-18 dB';
+  if (dbEl) dbEl.textContent = '-60 dB';
 }
 
 // ---------------------------------------------------------------------------
@@ -243,7 +276,12 @@ function setRecorderState(state) {
     if (coreBtn) coreBtn.className = 'w-24 h-24 rounded-full border border-primary bg-surface-container flex flex-col items-center justify-center gap-1 group-hover:bg-primary group-hover:text-on-primary transition-none';
     if (needle) needle.style.transform = 'translateX(-50%) rotate(0deg)';
     document.getElementById('session-timer').textContent = '00:00.0';
-    document.getElementById('vu-db-readout').textContent = '-18 dB';
+    const dbReadout = document.getElementById('vu-db-readout');
+    if (dbReadout) dbReadout.textContent = '-60 dB';
+    const bars = document.querySelectorAll('#vu-meter .vu-bar');
+    bars.forEach((b) => {
+      b.className = 'vu-bar bg-outline-variant h-full';
+    });
   } else if (state === 'listening') {
     isListening = true;
     elapsedSeconds = 0;
@@ -685,15 +723,10 @@ function dismissAlert() {
   const banner = document.getElementById('alert-banner');
   if (banner) banner.classList.add('hidden');
   if (currentDueReminderId) {
-    completeReminder(currentDueReminderId);
+    if (!currentDueReminderId.startsWith('test-')) {
+      completeReminder(currentDueReminderId);
+    }
     currentDueReminderId = null;
-  }
-}
-
-function snoozeAlert(minutes = 5) {
-  dismissAlert();
-  if (currentDueReminderId) {
-    handleVoiceCommand(`Remind me to follow up in ${minutes} minutes.`);
   }
 }
 

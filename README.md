@@ -6,6 +6,8 @@ A lightweight, speech-driven reminder agent built with **Python 3.10+**, **FastA
 
 ## Features
 
+- **Local Offline Whisper AI**: Powered by `faster-whisper` (`tiny.en`) running 100% locally on CPU. No external cloud STT services or network transmissions.
+- **Universal Browser Support**: Uses standard HTML5 `MediaRecorder` and `Web Audio API` with live real-time VU meter level feedback. Works across Chrome, Firefox, Safari, Edge, and mobile browsers.
 - **Rule-Based Natural Language Voice Parser**: Uses regex and date/time calculation to parse natural reminder intents and relative/absolute time expressions (e.g., *"tomorrow at 9 AM"*, *"in 10 minutes"*, *"tonight"*, *"today at 6 PM"*, *"in 2 hours"*).
 - **Safe, Atomic JSON Storage**: Uses atomic file replacement (`os.replace`) and concurrency locks to prevent corrupted data, and validates JSON integrity before updates.
 - **RESTful API & Pydantic Validation**: Full CRUD endpoints for managing reminders and parsing voice command transcripts.
@@ -20,6 +22,7 @@ A lightweight, speech-driven reminder agent built with **Python 3.10+**, **FastA
 ```text
 voice-reminder/
 ├── app.py                  # FastAPI application, routes, and lifespan manager
+├── transcriber.py          # Local offline faster-whisper transcription engine
 ├── reminder_parser.py      # Regex and datetime command parser
 ├── storage.py              # Thread-safe atomic JSON file storage
 ├── scheduler.py            # Background scheduler and WebSocket connection manager
@@ -122,7 +125,17 @@ The parser supports common speech commands without requiring exact syntax:
 - **Description**: Returns the main HTML interface.
 - **Response**: `200 OK` (`text/html`).
 
-### 2. `POST /api/command`
+### 2. `POST /api/voice-command`
+- **Description**: Uploads raw audio recording (WebM, WAV, MP4, etc.), transcribes via local Whisper AI, and processes the command.
+- **Request**: `multipart/form-data` with `file: <audio_file>`.
+- **Response**: `CommandResponse` JSON with `transcript`, `reply`, `intent`, `reminder`.
+
+### 3. `POST /api/transcribe`
+- **Description**: Transcribes an uploaded audio file using local Whisper and returns the text transcript.
+- **Request**: `multipart/form-data` with `file: <audio_file>`.
+- **Response**: `{"transcript": "..."}`.
+
+### 4. `POST /api/command`
 - **Description**: Submits a speech transcript string to the NLP parser and executes the corresponding action.
 - **Request Body**:
   ```json
