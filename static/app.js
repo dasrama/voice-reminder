@@ -427,8 +427,8 @@ function updateAgentResponse(data) {
     const addChip = (label, value, isHighlight = false) => {
       const chip = document.createElement('span');
       chip.className = isHighlight
-        ? 'border border-secondary bg-secondary text-on-secondary px-1.5 py-0.5 font-label-sm text-label-sm font-mono uppercase'
-        : 'border border-primary px-1.5 py-0.5 font-label-sm text-label-sm bg-surface-container font-mono uppercase';
+        ? 'border border-secondary bg-secondary text-on-secondary px-2 py-0.5 font-label-sm text-label-sm font-mono uppercase font-bold'
+        : 'border border-primary px-2 py-0.5 font-label-sm text-label-sm bg-surface-container font-mono uppercase font-bold';
       chip.textContent = `${label}: ${value}`;
       chipsContainer.appendChild(chip);
     };
@@ -471,9 +471,9 @@ function setFilter(filterType) {
   Object.entries(tabs).forEach(([type, tab]) => {
     if (tab) {
       if (type === filterType) {
-        tab.className = 'font-label-sm text-label-sm border border-primary bg-primary text-on-primary px-2 py-1 uppercase';
+        tab.className = 'font-label-sm text-label-sm border border-primary bg-primary text-on-primary px-2.5 py-1 uppercase font-bold';
       } else {
-        tab.className = 'font-label-sm text-label-sm border border-primary bg-surface text-on-surface px-2 py-1 uppercase hover:bg-surface-container';
+        tab.className = 'font-label-sm text-label-sm border border-primary bg-surface text-on-surface px-2.5 py-1 uppercase hover:bg-surface-container font-bold';
       }
     }
   });
@@ -528,41 +528,41 @@ function renderReminders(reminders) {
     let statusBadge = '';
     if (isDue) {
       statusBadge = `
-        <span class="inline-flex items-center gap-1 bg-secondary text-on-secondary px-1.5 py-0.5 font-label-sm text-label-sm uppercase font-bold">
-          <span class="w-1.5 h-1.5 rounded-full bg-on-secondary animate-ping"></span>
+        <span class="inline-flex items-center gap-1.5 bg-secondary text-on-secondary px-2 py-0.5 font-label-sm text-label-sm uppercase font-bold">
+          <span class="w-2 h-2 rounded-full bg-on-secondary animate-ping"></span>
           DUE NOW
         </span>`;
     } else if (isCompleted) {
       statusBadge = `
-        <span class="inline-flex items-center gap-1 border border-outline bg-surface-container px-1.5 py-0.5 font-label-sm text-label-sm uppercase text-on-surface-variant font-mono">
+        <span class="inline-flex items-center gap-1.5 border border-outline bg-surface-container px-2 py-0.5 font-label-sm text-label-sm uppercase text-on-surface-variant font-mono font-bold">
           RESOLVED
         </span>`;
     } else {
       statusBadge = `
-        <span class="inline-flex items-center gap-1 border border-primary bg-surface-container px-1.5 py-0.5 font-label-sm text-label-sm uppercase text-primary">
-          <span class="w-1.5 h-1.5 rounded-full bg-primary"></span>
+        <span class="inline-flex items-center gap-1.5 border border-primary bg-surface-container px-2 py-0.5 font-label-sm text-label-sm uppercase text-primary font-bold">
+          <span class="w-2 h-2 rounded-full bg-primary"></span>
           PENDING
         </span>`;
     }
 
     row.innerHTML = `
-      <td class="py-2.5 px-space-md">${statusBadge}</td>
-      <td class="py-2.5 px-space-md font-mono ${isDue ? 'text-secondary font-bold' : 'text-primary'}">
+      <td class="py-3 px-space-md">${statusBadge}</td>
+      <td class="py-3 px-space-md font-mono ${isDue ? 'text-secondary font-bold' : 'text-primary'}">
         ${formattedDue}
       </td>
-      <td class="py-2.5 px-space-md text-primary font-body-md text-body-md">
+      <td class="py-3 px-space-md text-primary font-body-md text-body-md">
         ${escapeHtml(r.task)}
         <div class="font-label-sm text-label-sm text-on-surface-variant font-mono mt-0.5">
           ${r.id.substring(0, 8)}
         </div>
       </td>
-      <td class="py-2.5 px-space-md text-right space-x-1">
+      <td class="py-3 px-space-md text-right space-x-1.5">
         ${!isCompleted ? `
-          <button type="button" onclick="completeReminder('${r.id}')" class="font-label-sm text-label-sm border border-primary bg-primary text-on-primary px-2 py-0.5 uppercase hover:bg-surface hover:text-primary active:translate-x-px active:translate-y-px transition-none">
+          <button type="button" onclick="completeReminder('${r.id}')" class="font-label-sm text-label-sm border border-primary bg-primary text-on-primary px-2.5 py-1 uppercase hover:bg-surface hover:text-primary active:translate-x-px active:translate-y-px transition-none font-bold">
             [DONE]
           </button>
         ` : ''}
-        <button type="button" onclick="deleteReminder('${r.id}')" class="font-label-sm text-label-sm border border-outline text-on-surface-variant px-1.5 py-0.5 uppercase hover:bg-secondary hover:text-on-secondary hover:border-secondary active:translate-x-px active:translate-y-px transition-none">
+        <button type="button" onclick="deleteReminder('${r.id}')" class="font-label-sm text-label-sm border border-outline text-on-surface-variant px-2 py-1 uppercase hover:bg-secondary hover:text-on-secondary hover:border-secondary active:translate-x-px active:translate-y-px transition-none font-bold">
           [X]
         </button>
       </td>
@@ -620,7 +620,7 @@ function setQueueView(mode) {
   const bError = document.getElementById('btn-q-error');
 
   [bNormal, bEmpty, bError].forEach(b => {
-    if (b) b.className = 'font-label-sm text-label-sm px-1.5 py-0.5 uppercase text-on-surface hover:bg-surface-container-high';
+    if (b) b.className = 'font-label-sm text-label-sm px-2.5 py-1 uppercase text-on-surface hover:bg-surface-container-high';
   });
 
   if (normalView) normalView.classList.add('hidden');
@@ -629,14 +629,14 @@ function setQueueView(mode) {
 
   if (mode === 'normal') {
     if (normalView) normalView.classList.remove('hidden');
-    if (bNormal) bNormal.className = 'font-label-sm text-label-sm px-1.5 py-0.5 uppercase bg-primary text-on-primary';
+    if (bNormal) bNormal.className = 'font-label-sm text-label-sm px-2.5 py-1 uppercase bg-primary text-on-primary font-bold';
   } else if (mode === 'empty') {
     if (emptyView) emptyView.classList.remove('hidden');
-    if (bEmpty) bEmpty.className = 'font-label-sm text-label-sm px-1.5 py-0.5 uppercase bg-primary text-on-primary';
+    if (bEmpty) bEmpty.className = 'font-label-sm text-label-sm px-2.5 py-1 uppercase bg-primary text-on-primary font-bold';
     document.getElementById('queue-count-display').textContent = '0 REMINDERS';
   } else if (mode === 'error') {
     if (errorView) errorView.classList.remove('hidden');
-    if (bError) bError.className = 'font-label-sm text-label-sm px-1.5 py-0.5 uppercase bg-secondary text-on-secondary';
+    if (bError) bError.className = 'font-label-sm text-label-sm px-2.5 py-1 uppercase bg-secondary text-on-secondary font-bold';
     document.getElementById('queue-count-display').textContent = 'ERROR';
   }
 }
@@ -747,7 +747,42 @@ function requestNotificationPermission() {
 }
 
 // ---------------------------------------------------------------------------
-// 8. Keyboard Shortcuts & Initialization
+// 8. Theme Management (Light / Dark Mode)
+// ---------------------------------------------------------------------------
+
+function initTheme() {
+  const saved = localStorage.getItem('voice_reminder_theme');
+  const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+  const isDark = saved === 'dark' || (!saved && prefersDark);
+  applyTheme(isDark);
+}
+
+function toggleTheme() {
+  const isDark = !document.documentElement.classList.contains('dark');
+  applyTheme(isDark);
+  try {
+    localStorage.setItem('voice_reminder_theme', isDark ? 'dark' : 'light');
+  } catch (e) {}
+}
+
+function applyTheme(isDark) {
+  const html = document.documentElement;
+  const label = document.getElementById('theme-label');
+  const dot = document.getElementById('theme-status-dot');
+
+  if (isDark) {
+    html.classList.add('dark');
+    if (label) label.textContent = 'THEME: DARK';
+    if (dot) dot.className = 'w-1.5 h-1.5 rounded-full bg-brand-orange inline-block';
+  } else {
+    html.classList.remove('dark');
+    if (label) label.textContent = 'THEME: LIGHT';
+    if (dot) dot.className = 'w-1.5 h-1.5 rounded-full bg-brand-blue inline-block';
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 9. Keyboard Shortcuts & Initialization
 // ---------------------------------------------------------------------------
 
 function escapeHtml(text) {
@@ -776,6 +811,7 @@ window.addEventListener('keydown', (e) => {
 });
 
 document.addEventListener('DOMContentLoaded', () => {
+  initTheme();
   connectWebSocket();
   refreshQueue();
 });
