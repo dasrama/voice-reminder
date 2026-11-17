@@ -1,7 +1,6 @@
 """FastAPI main application for Voice Notes Reminder Agent."""
 
 import os
-import logging
 from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import List, Dict, Any, Optional
@@ -22,19 +21,15 @@ from schemas import (
 from reminder_parser import parse_command
 from scheduler import scheduler, manager
 
-# Configure logging
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
-logger = logging.getLogger("voice_reminder_app")
-
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Lifespan context manager for starting and stopping background scheduler."""
-    logger.info("Starting Voice Notes Reminder Agent...")
+    print("Starting Voice Notes Reminder Agent...")
     storage.ensure_storage_file()
     scheduler.start()
     yield
-    logger.info("Stopping Voice Notes Reminder Agent...")
+    print("Stopping Voice Notes Reminder Agent...")
     await scheduler.stop()
 
 
@@ -102,7 +97,7 @@ async def transcribe_audio_endpoint(file: UploadFile = File(...)):
     except HTTPException:
         raise
     except Exception as exc:
-        logger.error(f"Transcription error: {exc}")
+        print(f"Transcription error: {exc}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Transcription failed: {exc}",
@@ -139,7 +134,7 @@ async def process_voice_audio_command(file: UploadFile = File(...)):
 
         return await process_voice_command(CommandRequest(transcript=transcript))
     except Exception as exc:
-        logger.error(f"Voice audio command error: {exc}")
+        print(f"Voice audio command error: {exc}")
         content_resp = CommandResponse(
             intent="unknown",
             reply="Failed to process voice audio recording.",
@@ -166,7 +161,7 @@ async def process_voice_command(body: CommandRequest):
     try:
         parsed = parse_command(transcript)
     except Exception as exc:
-        logger.error(f"Error parsing transcript '{transcript}': {exc}")
+        print(f"Error parsing transcript '{transcript}': {exc}")
         content = CommandResponse(
             intent="unknown",
             reply="An error occurred while parsing your request.",
@@ -218,7 +213,7 @@ async def process_voice_command(body: CommandRequest):
                 reminder=Reminder(**created),
             )
         except Exception as exc:
-            logger.error(f"Error saving reminder: {exc}")
+            print(f"Error saving reminder: {exc}")
             content = CommandResponse(
                 intent="add_reminder",
                 task=clean_task,
@@ -246,7 +241,7 @@ async def process_voice_command(body: CommandRequest):
                 reminders=[Reminder(**r) for r in all_reminders],
             )
         except Exception as exc:
-            logger.error(f"Error listing reminders: {exc}")
+            print(f"Error listing reminders: {exc}")
             content = CommandResponse(
                 intent="list_reminders",
                 reply="Unable to retrieve reminders at this time.",
@@ -273,7 +268,7 @@ async def process_voice_command(body: CommandRequest):
                 reminders=[Reminder(**r) for r in pending],
             )
         except Exception as exc:
-            logger.error(f"Error listing pending reminders: {exc}")
+            print(f"Error listing pending reminders: {exc}")
             content = CommandResponse(
                 intent="list_pending_reminders",
                 reply="Unable to retrieve pending reminders at this time.",
@@ -308,7 +303,7 @@ async def process_voice_command(body: CommandRequest):
                     transcript=transcript,
                 )
         except Exception as exc:
-            logger.error(f"Error deleting last reminder: {exc}")
+            print(f"Error deleting last reminder: {exc}")
             content = CommandResponse(
                 intent="delete_last_reminder",
                 reply="Failed to delete reminder due to a storage error.",
@@ -352,7 +347,7 @@ async def process_voice_command(body: CommandRequest):
                 ).model_dump()
                 return JSONResponse(status_code=status.HTTP_404_NOT_FOUND, content=content)
         except Exception as exc:
-            logger.error(f"Error deleting reminder {target_id}: {exc}")
+            print(f"Error deleting reminder {target_id}: {exc}")
             content = CommandResponse(
                 intent="delete_reminder_by_id",
                 reply="Failed to delete reminder due to a storage error.",
@@ -380,7 +375,7 @@ async def get_all_reminders():
     except storage.StorageCorruptionError as exc:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc))
     except Exception as exc:
-        logger.error(f"Error retrieving reminders: {exc}")
+        print(f"Error retrieving reminders: {exc}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to load reminders")
 
 
@@ -393,7 +388,7 @@ async def get_pending_reminders():
     except storage.StorageCorruptionError as exc:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc))
     except Exception as exc:
-        logger.error(f"Error retrieving pending reminders: {exc}")
+        print(f"Error retrieving pending reminders: {exc}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to load pending reminders")
 
 
@@ -418,7 +413,7 @@ async def update_status(reminder_id: str, body: ReminderStatusUpdate):
     except HTTPException:
         raise
     except Exception as exc:
-        logger.error(f"Error updating reminder {reminder_id}: {exc}")
+        print(f"Error updating reminder {reminder_id}: {exc}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to update reminder")
 
 
@@ -443,7 +438,7 @@ async def delete_reminder(reminder_id: str):
     except HTTPException:
         raise
     except Exception as exc:
-        logger.error(f"Error deleting reminder {reminder_id}: {exc}")
+        print(f"Error deleting reminder {reminder_id}: {exc}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to delete reminder")
 
 
@@ -465,5 +460,5 @@ async def websocket_endpoint(websocket: WebSocket):
     except WebSocketDisconnect:
         await manager.disconnect(websocket)
     except Exception as exc:
-        logger.warning(f"WebSocket client error: {exc}")
+        print(f"WebSocket client error: {exc}")
         await manager.disconnect(websocket)

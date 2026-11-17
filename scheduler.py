@@ -3,14 +3,11 @@
 from __future__ import annotations
 import asyncio
 import os
-import logging
 from datetime import datetime
 from typing import List, Dict, Any, Optional
 from fastapi import WebSocket
 
 import storage
-
-logger = logging.getLogger("reminder_scheduler")
 
 DEFAULT_INTERVAL_SECONDS = int(os.getenv("SCHEDULER_INTERVAL_SECONDS", "30"))
 
@@ -26,13 +23,13 @@ class ConnectionManager:
         await websocket.accept()
         async with self._lock:
             self.active_connections.append(websocket)
-        logger.info(f"WebSocket client connected. Total clients: {len(self.active_connections)}")
+        print(f"WebSocket client connected. Total clients: {len(self.active_connections)}")
 
     async def disconnect(self, websocket: WebSocket) -> None:
         async with self._lock:
             if websocket in self.active_connections:
                 self.active_connections.remove(websocket)
-        logger.info(f"WebSocket client disconnected. Total clients: {len(self.active_connections)}")
+        print(f"WebSocket client disconnected. Total clients: {len(self.active_connections)}")
 
     async def broadcast(self, message: Dict[str, Any]) -> None:
         """Broadcast a JSON message to all active WebSocket connections."""
@@ -42,7 +39,7 @@ class ConnectionManager:
                 try:
                     await connection.send_json(message)
                 except Exception as exc:
-                    logger.warning(f"Failed to send to client ({exc}). Marking for disconnect.")
+                    print(f"Failed to send to client ({exc}). Marking for disconnect.")
                     disconnected.append(connection)
 
             for dead_conn in disconnected:
@@ -86,9 +83,9 @@ async def check_due_reminders(storage_file: Optional[str] = None) -> List[Dict[s
                         "message": f"Reminder: {updated.get('task')}",
                         "reminder": updated,
                     })
-                    logger.info(f"Announced reminder {updated.get('id')}: {updated.get('task')}")
+                    print(f"Announced reminder {updated.get('id')}: {updated.get('task')}")
         except Exception as exc:
-            logger.error(f"Error checking reminder {r.get('id')}: {exc}")
+            print(f"Error checking reminder {r.get('id')}: {exc}")
 
     return announced
 
@@ -102,12 +99,12 @@ class ReminderScheduler:
         self._running = False
 
     async def _loop(self) -> None:
-        logger.info(f"Background reminder scheduler started (checking every {self.interval_seconds}s)")
+        print(f"Background reminder scheduler started (checking every {self.interval_seconds}s)")
         while self._running:
             try:
                 await check_due_reminders()
             except Exception as exc:
-                logger.error(f"Unexpected error in scheduler loop: {exc}")
+                print(f"Unexpected error in scheduler loop: {exc}")
 
             try:
                 await asyncio.sleep(self.interval_seconds)
@@ -128,7 +125,7 @@ class ReminderScheduler:
                     await self._task
                 except asyncio.CancelledError:
                     pass
-            logger.info("Background reminder scheduler stopped")
+            print("Background reminder scheduler stopped")
 
 
 # Shared scheduler instance
