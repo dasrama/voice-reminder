@@ -249,16 +249,52 @@ function stopLiveVuMonitoring() {
 }
 
 // ---------------------------------------------------------------------------
-// 3. UI State Management
+// 3. Floating Voice Dock & UI State Management
 // ---------------------------------------------------------------------------
+
+let isDockOpen = false;
+let dockCollapseTimer = null;
+
+function expandDock() {
+  const drawer = document.getElementById('voice-dock-drawer');
+  const chevron = document.getElementById('dock-chevron');
+  const label = document.getElementById('dock-toggle-label');
+  if (drawer) {
+    drawer.classList.add('dock-open');
+    isDockOpen = true;
+  }
+  if (chevron) chevron.style.transform = 'rotate(180deg)';
+  if (label) label.textContent = 'COLLAPSE';
+  if (dockCollapseTimer) clearTimeout(dockCollapseTimer);
+}
+
+function collapseDock() {
+  const drawer = document.getElementById('voice-dock-drawer');
+  const chevron = document.getElementById('dock-chevron');
+  const label = document.getElementById('dock-toggle-label');
+  if (drawer) {
+    drawer.classList.remove('dock-open');
+    isDockOpen = false;
+  }
+  if (chevron) chevron.style.transform = 'rotate(0deg)';
+  if (label) label.textContent = 'EXPAND';
+  if (dockCollapseTimer) clearTimeout(dockCollapseTimer);
+}
+
+function toggleDock() {
+  if (isDockOpen) {
+    collapseDock();
+  } else {
+    expandDock();
+  }
+}
 
 function setRecorderState(state) {
   currentState = state;
   const led = document.getElementById('hardware-led');
   const statusText = document.getElementById('hardware-status-text');
   const heroText = document.getElementById('mic-status-hero');
-  const coreBtn = document.getElementById('mic-inner-core');
-  const coreLabel = document.getElementById('mic-core-label');
+  const masterBtn = document.getElementById('master-mic-btn');
   const needle = document.getElementById('rotary-needle');
   const transcript = document.getElementById('transcript-content');
 
@@ -268,13 +304,11 @@ function setRecorderState(state) {
     isListening = false;
     if (led) led.className = 'w-2.5 h-2.5 rounded-full bg-primary inline-block';
     if (statusText) statusText.textContent = 'READY';
-    if (heroText) heroText.textContent = 'START LISTENING';
-    if (coreLabel) coreLabel.textContent = 'REC';
-    if (coreBtn) coreBtn.className = 'w-24 h-24 rounded-full border border-primary bg-surface-container flex flex-col items-center justify-center gap-1 group-hover:bg-primary group-hover:text-on-primary transition-none';
+    if (heroText) heroText.textContent = 'START LISTENING [SPACE]';
+    if (masterBtn) masterBtn.className = 'relative w-11 h-11 rounded-full border-2 border-primary bg-surface-variant flex items-center justify-center cursor-pointer transition-none active:translate-x-0.5 active:translate-y-0.5 outline-none hover:bg-primary group text-primary hover:text-on-primary';
     if (needle) needle.style.transform = 'translateX(-50%) rotate(0deg)';
-    document.getElementById('session-timer').textContent = '00:00.0';
-    const dbReadout = document.getElementById('vu-db-readout');
-    if (dbReadout) dbReadout.textContent = '-60 dB';
+    const timerEl = document.getElementById('session-timer');
+    if (timerEl) timerEl.textContent = '00:00.0';
     const bars = document.querySelectorAll('#vu-meter .vu-bar');
     bars.forEach((b) => {
       b.className = 'vu-bar bg-outline-variant h-full';
@@ -283,35 +317,35 @@ function setRecorderState(state) {
     isListening = true;
     elapsedSeconds = 0;
     playHardwareChime(660, 0.1);
+    expandDock();
     if (led) led.className = 'w-2.5 h-2.5 rounded-full bg-secondary inline-block animate-ping';
     if (statusText) statusText.textContent = 'RECORDING';
-    if (heroText) heroText.textContent = 'RECORDING...';
-    if (coreLabel) coreLabel.textContent = 'STOP';
-    if (coreBtn) coreBtn.className = 'w-24 h-24 rounded-full border-2 border-secondary bg-secondary text-on-secondary flex flex-col items-center justify-center gap-1 transition-none';
+    if (heroText) heroText.textContent = 'RECORDING... [SPACE/STOP]';
+    if (masterBtn) masterBtn.className = 'relative w-11 h-11 rounded-full border-2 border-secondary bg-secondary text-on-secondary flex items-center justify-center cursor-pointer transition-none active:translate-x-0.5 active:translate-y-0.5 outline-none animate-pulse';
     if (needle) needle.style.transform = 'translateX(-50%) rotate(180deg)';
-    if (transcript) transcript.innerHTML = 'Listening... Speak your reminder, then click STOP or press Spacebar.<span class="inline-block w-2 h-3.5 bg-secondary ml-1 animate-pulse"></span>';
+    if (transcript) transcript.innerHTML = 'Listening... Speak your reminder clearly, then click Stop or press Spacebar.<span class="inline-block w-2 h-3.5 bg-secondary ml-1 animate-pulse"></span>';
 
     timerInterval = setInterval(() => {
       elapsedSeconds += 0.1;
       const mins = Math.floor(elapsedSeconds / 60).toString().padStart(2, '0');
       const secs = (elapsedSeconds % 60).toFixed(1).padStart(4, '0');
-      document.getElementById('session-timer').textContent = `${mins}:${secs}`;
+      const timerEl = document.getElementById('session-timer');
+      if (timerEl) timerEl.textContent = `${mins}:${secs}`;
     }, 100);
   } else if (state === 'processing') {
     isListening = false;
+    expandDock();
     if (led) led.className = 'w-2.5 h-2.5 rounded-full bg-primary inline-block animate-pulse';
     if (statusText) statusText.textContent = 'PROCESSING';
     if (heroText) heroText.textContent = 'TRANSCRIBING...';
-    if (coreLabel) coreLabel.textContent = 'WAIT';
-    if (coreBtn) coreBtn.className = 'w-24 h-24 rounded-full border border-primary bg-surface-container-high flex flex-col items-center justify-center gap-1 transition-none';
+    if (masterBtn) masterBtn.className = 'relative w-11 h-11 rounded-full border-2 border-primary bg-surface-container-high flex items-center justify-center cursor-wait transition-none text-primary';
     if (needle) needle.style.transform = 'translateX(-50%) rotate(90deg)';
   } else if (state === 'error') {
     isListening = false;
     if (led) led.className = 'w-2.5 h-2.5 rounded-full bg-error inline-block';
     if (statusText) statusText.textContent = 'ERROR';
-    if (heroText) heroText.textContent = 'ERROR';
-    if (coreLabel) coreLabel.textContent = 'RETRY';
-    if (coreBtn) coreBtn.className = 'w-24 h-24 rounded-full border-2 border-error bg-surface flex flex-col items-center justify-center gap-1 transition-none text-error';
+    if (heroText) heroText.textContent = 'ERROR (RETRY)';
+    if (masterBtn) masterBtn.className = 'relative w-11 h-11 rounded-full border-2 border-error bg-surface flex items-center justify-center cursor-pointer transition-none text-error';
     if (needle) needle.style.transform = 'translateX(-50%) rotate(270deg)';
   }
 }
@@ -414,6 +448,7 @@ async function handleVoiceCommand(transcript) {
 }
 
 function updateAgentResponse(data) {
+  expandDock();
   const replyEl = document.getElementById('agent-reply-text');
   const chipsContainer = document.getElementById('agent-param-chips');
 
@@ -437,6 +472,14 @@ function updateAgentResponse(data) {
     if (data.task) addChip('TASK', data.task);
     if (data.due_at) addChip('DUE_AT', data.due_at);
     addChip('STATUS', data.success ? 'SUCCESS' : 'ATTENTION');
+  }
+
+  // Auto-collapse drawer after 4.5 seconds if action was successful
+  if (data.success && isDockOpen) {
+    if (dockCollapseTimer) clearTimeout(dockCollapseTimer);
+    dockCollapseTimer = setTimeout(() => {
+      if (!isListening) collapseDock();
+    }, 4500);
   }
 }
 
@@ -481,8 +524,41 @@ function setFilter(filterType) {
   refreshQueue();
 }
 
+function formatRelativeCountdown(dueAtStr, isCompleted) {
+  if (isCompleted) return 'RESOLVED';
+  if (!dueAtStr) return '';
+  const now = new Date();
+  const due = new Date(dueAtStr);
+  const diffMs = due - now;
+  const diffSec = Math.round(diffMs / 1000);
+  const diffMin = Math.round(diffSec / 60);
+  const diffHour = Math.round(diffMin / 60);
+  const diffDay = Math.round(diffHour / 24);
+
+  if (diffSec < -60) {
+    if (Math.abs(diffMin) < 60) return `OVERDUE ${Math.abs(diffMin)}M AGO`;
+    if (Math.abs(diffHour) < 24) return `OVERDUE ${Math.abs(diffHour)}H AGO`;
+    return `OVERDUE ${Math.abs(diffDay)}D AGO`;
+  }
+  if (diffSec >= -60 && diffSec <= 60) {
+    return 'DUE RIGHT NOW';
+  }
+  if (diffMin < 60) {
+    return `in ${diffMin} min${diffMin !== 1 ? 's' : ''}`;
+  }
+  if (diffHour < 24) {
+    return `in ${diffHour} hour${diffHour !== 1 ? 's' : ''}`;
+  }
+  if (diffDay === 1) {
+    return 'tomorrow';
+  }
+  return `in ${diffDay} days`;
+}
+
 function renderReminders(reminders) {
   const tbody = document.getElementById('reminder-tbody');
+  const countBadge = document.getElementById('queue-count-badge');
+  const countDisplay = document.getElementById('queue-count-display');
   if (!tbody) return;
 
   const now = new Date();
@@ -497,6 +573,9 @@ function renderReminders(reminders) {
 
   tbody.innerHTML = '';
 
+  if (countBadge) countBadge.textContent = filtered.length;
+  if (countDisplay) countDisplay.textContent = `${filtered.length} REMINDER${filtered.length !== 1 ? 'S' : ''}`;
+
   if (filtered.length === 0) {
     setQueueView('empty');
     return;
@@ -504,76 +583,120 @@ function renderReminders(reminders) {
 
   setQueueView('normal');
 
+  // Categorize reminders into distinct visual sections
+  const groups = [
+    { id: 'due_now', title: 'OVERDUE', items: [], headerClass: 'text-secondary bg-secondary/10' },
+    { id: 'today', title: 'TODAY', items: [], headerClass: 'text-brand-blue bg-brand-blue/10' },
+    { id: 'upcoming', title: 'UPCOMING', items: [], headerClass: 'text-on-surface bg-surface-container-high' },
+    { id: 'completed', title: 'COMPLETED', items: [], headerClass: 'text-on-surface-variant bg-surface-container' },
+  ];
+
   filtered.forEach(r => {
-    const row = document.createElement('tr');
     const isDue = r.status === 'announced';
     const isCompleted = r.status === 'completed';
+    const dueTime = r.due_at ? new Date(r.due_at) : null;
+    const isOverdue = dueTime && dueTime < now && !isCompleted;
+    const isToday = r.due_at && r.due_at.startsWith(todayDateStr);
 
-    if (isDue) {
-      row.className = 'bg-secondary/10 hover:bg-secondary/15 transition-none';
-    } else if (isCompleted) {
-      row.className = 'opacity-40 hover:bg-surface-container transition-none';
+    if (isCompleted) {
+      groups[3].items.push(r);
+    } else if (isDue || isOverdue) {
+      groups[0].items.push(r);
+    } else if (isToday) {
+      groups[1].items.push(r);
     } else {
-      row.className = 'hover:bg-surface-container transition-none';
+      groups[2].items.push(r);
     }
-
-    let formattedDue = r.due_at || '';
-    try {
-      const dt = new Date(r.due_at);
-      const timeStr = dt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      const dateStr = dt.toLocaleDateString([], { month: 'short', day: 'numeric' });
-      formattedDue = `${dateStr} ${timeStr}`;
-    } catch (e) {}
-
-    let statusBadge = '';
-    if (isDue) {
-      statusBadge = `
-        <span class="inline-flex items-center gap-1.5 bg-secondary text-on-secondary px-2 py-0.5 font-label-sm text-label-sm uppercase font-bold">
-          <span class="w-2 h-2 rounded-full bg-on-secondary animate-ping"></span>
-          DUE NOW
-        </span>`;
-    } else if (isCompleted) {
-      statusBadge = `
-        <span class="inline-flex items-center gap-1.5 border border-outline bg-surface-container px-2 py-0.5 font-label-sm text-label-sm uppercase text-on-surface-variant font-mono font-bold">
-          RESOLVED
-        </span>`;
-    } else {
-      statusBadge = `
-        <span class="inline-flex items-center gap-1.5 border border-primary bg-surface-container px-2 py-0.5 font-label-sm text-label-sm uppercase text-primary font-bold">
-          <span class="w-2 h-2 rounded-full bg-primary"></span>
-          PENDING
-        </span>`;
-    }
-
-    row.innerHTML = `
-      <td class="py-3 px-space-md">${statusBadge}</td>
-      <td class="py-3 px-space-md font-mono ${isDue ? 'text-secondary font-bold' : 'text-primary'}">
-        ${formattedDue}
-      </td>
-      <td class="py-3 px-space-md text-primary font-body-md text-body-md">
-        ${escapeHtml(r.task)}
-        <div class="font-label-sm text-label-sm text-on-surface-variant font-mono mt-0.5">
-          ${r.id.substring(0, 8)}
-        </div>
-      </td>
-      <td class="py-3 px-space-md text-right space-x-1.5">
-        ${!isCompleted ? `
-          <button type="button" onclick="completeReminder('${r.id}')" class="font-label-sm text-label-sm border border-primary bg-primary text-on-primary px-2.5 py-1 uppercase hover:bg-surface hover:text-primary active:translate-x-px active:translate-y-px transition-none font-bold">
-            [DONE]
-          </button>
-        ` : ''}
-        <button type="button" onclick="deleteReminder('${r.id}')" class="font-label-sm text-label-sm border border-outline text-on-surface-variant px-2 py-1 uppercase hover:bg-secondary hover:text-on-secondary hover:border-secondary active:translate-x-px active:translate-y-px transition-none font-bold">
-          [X]
-        </button>
-      </td>
-    `;
-    tbody.appendChild(row);
   });
 
-  const countDisplay = document.getElementById('queue-count-display');
-  if (countDisplay) {
-    countDisplay.textContent = `${filtered.length} REMINDER${filtered.length !== 1 ? 'S' : ''}`;
-  }
+  groups.forEach(group => {
+    if (group.items.length === 0) return;
+
+    // Render group header separator row
+    const groupRow = document.createElement('tr');
+    groupRow.className = `group-separator-row ${group.headerClass}`;
+    groupRow.innerHTML = `
+      <td colspan="4" class="py-2.5 px-space-md font-label-sm text-label-sm uppercase font-bold tracking-wider">
+        <div class="flex items-center justify-between">
+          <span>${group.title}</span>
+          <span class="px-2 py-0.5 border border-primary/20 text-xs font-mono font-bold bg-surface/60">${group.items.length}</span>
+        </div>
+      </td>
+    `;
+    tbody.appendChild(groupRow);
+
+    group.items.forEach(r => {
+      const row = document.createElement('tr');
+      const isDue = r.status === 'announced';
+      const isCompleted = r.status === 'completed';
+      const dueTime = r.due_at ? new Date(r.due_at) : null;
+      const isOverdue = dueTime && dueTime < now && !isCompleted;
+
+      if (isDue || isOverdue) {
+        row.className = 'bg-secondary/10 hover:bg-secondary/15 transition-none';
+      } else if (isCompleted) {
+        row.className = 'opacity-40 hover:bg-surface-container transition-none';
+      } else {
+        row.className = 'hover:bg-surface-container transition-none';
+      }
+
+      let formattedDue = r.due_at || '';
+      try {
+        const dt = new Date(r.due_at);
+        const timeStr = dt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const dateStr = dt.toLocaleDateString([], { month: 'short', day: 'numeric' });
+        formattedDue = `${dateStr} ${timeStr}`;
+      } catch (e) {}
+
+      const relativeCountdown = formatRelativeCountdown(r.due_at, isCompleted);
+
+      let statusBadge = '';
+      if (isDue || isOverdue) {
+        statusBadge = `
+          <span class="inline-flex items-center gap-1.5 bg-secondary text-on-secondary px-2 py-0.5 font-label-sm text-label-sm uppercase font-bold">
+            <span class="w-2 h-2 rounded-full bg-on-secondary animate-ping"></span>
+            ${isDue ? 'DUE NOW' : 'OVERDUE'}
+          </span>`;
+      } else if (isCompleted) {
+        statusBadge = `
+          <span class="inline-flex items-center gap-1.5 border border-outline bg-surface-container px-2 py-0.5 font-label-sm text-label-sm uppercase text-on-surface-variant font-mono font-bold">
+            RESOLVED
+          </span>`;
+      } else {
+        statusBadge = `
+          <span class="inline-flex items-center gap-1.5 border border-primary bg-surface-container px-2 py-0.5 font-label-sm text-label-sm uppercase text-primary font-bold">
+            <span class="w-2 h-2 rounded-full bg-primary"></span>
+            PENDING
+          </span>`;
+      }
+
+      row.innerHTML = `
+        <td class="py-3 px-space-md align-top">${statusBadge}</td>
+        <td class="py-3 px-space-md align-top font-mono">
+          <div class="${(isDue || isOverdue) ? 'text-secondary font-bold' : 'text-primary font-bold'}">
+            ${formattedDue}
+          </div>
+          <div class="font-label-sm text-label-sm ${(isDue || isOverdue) ? 'text-secondary font-bold' : 'text-brand-blue font-bold'} mt-0.5 uppercase">
+            ${relativeCountdown}
+          </div>
+        </td>
+        <td class="py-3 px-space-md text-primary font-body-md text-body-md align-top">
+          <div class="font-medium">${escapeHtml(r.task)}</div>
+        </td>
+        <td class="py-3 px-space-md text-right space-x-1.5 align-top">
+          ${!isCompleted ? `
+            <button type="button" onclick="completeReminder('${r.id}')" class="font-label-sm text-label-sm border border-primary bg-primary text-on-primary px-2.5 py-1 uppercase hover:bg-surface hover:text-primary active:translate-x-px active:translate-y-px transition-none font-bold" title="Mark Done">
+              [DONE]
+            </button>
+          ` : ''}
+          <button type="button" onclick="deleteReminder('${r.id}')" class="font-label-sm text-label-sm border border-outline text-on-surface-variant px-2 py-1 uppercase hover:bg-secondary hover:text-on-secondary hover:border-secondary active:translate-x-px active:translate-y-px transition-none font-bold" title="Delete Reminder">
+            [X]
+          </button>
+        </td>
+      `;
+      tbody.appendChild(row);
+    });
+  });
 }
 
 async function completeReminder(id) {
@@ -615,29 +738,22 @@ function setQueueView(mode) {
   const emptyView = document.getElementById('queue-empty-view');
   const errorView = document.getElementById('queue-error-view');
 
-  const bNormal = document.getElementById('btn-q-normal');
-  const bEmpty = document.getElementById('btn-q-empty');
-  const bError = document.getElementById('btn-q-error');
-
-  [bNormal, bEmpty, bError].forEach(b => {
-    if (b) b.className = 'font-label-sm text-label-sm px-2.5 py-1 uppercase text-on-surface hover:bg-surface-container-high';
-  });
-
   if (normalView) normalView.classList.add('hidden');
   if (emptyView) emptyView.classList.add('hidden');
   if (errorView) errorView.classList.add('hidden');
 
   if (mode === 'normal') {
     if (normalView) normalView.classList.remove('hidden');
-    if (bNormal) bNormal.className = 'font-label-sm text-label-sm px-2.5 py-1 uppercase bg-primary text-on-primary font-bold';
   } else if (mode === 'empty') {
     if (emptyView) emptyView.classList.remove('hidden');
-    if (bEmpty) bEmpty.className = 'font-label-sm text-label-sm px-2.5 py-1 uppercase bg-primary text-on-primary font-bold';
-    document.getElementById('queue-count-display').textContent = '0 REMINDERS';
+    const countDisplay = document.getElementById('queue-count-display');
+    if (countDisplay) countDisplay.textContent = '0 REMINDERS';
+    const countBadge = document.getElementById('queue-count-badge');
+    if (countBadge) countBadge.textContent = '0';
   } else if (mode === 'error') {
     if (errorView) errorView.classList.remove('hidden');
-    if (bError) bError.className = 'font-label-sm text-label-sm px-2.5 py-1 uppercase bg-secondary text-on-secondary font-bold';
-    document.getElementById('queue-count-display').textContent = 'ERROR';
+    const countDisplay = document.getElementById('queue-count-display');
+    if (countDisplay) countDisplay.textContent = 'ERROR';
   }
 }
 
@@ -646,6 +762,7 @@ function setQueueView(mode) {
 // ---------------------------------------------------------------------------
 
 function injectPrompt(rawText) {
+  expandDock();
   const transcriptEl = document.getElementById('transcript-content');
   if (transcriptEl) {
     transcriptEl.innerHTML = `“${escapeHtml(rawText)}”<span class="inline-block w-2 h-3.5 bg-secondary ml-1 animate-pulse"></span>`;
@@ -803,6 +920,8 @@ window.addEventListener('keydown', (e) => {
       stopAudioRecording();
     }
     setRecorderState('ready');
+    collapseDock();
+    dismissAlert();
   } else if (e.key === 'r' || e.key === 'R') {
     refreshQueue();
   } else if (e.key === 'd' || e.key === 'D') {

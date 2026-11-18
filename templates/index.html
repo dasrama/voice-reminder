@@ -148,219 +148,190 @@
       <div class="w-full bg-surface-container-high border-b border-outline-variant px-margin py-2 flex items-center justify-between text-on-surface-variant font-label-sm text-label-sm uppercase">
         <div class="flex items-center gap-4">
           <span class="text-primary font-bold">[SPACE] Record</span>
-          <span class="hidden sm:inline">[ESC] Stop</span>
+          <span class="hidden sm:inline">[ESC] Stop / Close</span>
           <span class="hidden md:inline">[R] Refresh</span>
           <span class="hidden lg:inline">[D] Dismiss</span>
         </div>
-        <span class="font-mono text-on-surface-variant">Offline Whisper AI</span>
+        <span class="font-mono text-on-surface-variant">Local Processing</span>
       </div>
 
-      <!-- BODY -->
-      <div class="w-full px-margin py-space-md grid grid-cols-1 lg:grid-cols-12 gap-gutter">
+      <!-- FULL-WIDTH WORKSPACE -->
+      <div class="w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex flex-col gap-6">
 
-        <!-- LEFT COLUMN: VOICE INPUT (5 cols) -->
-        <div class="lg:col-span-5 flex flex-col gap-gutter">
+        <!-- REMINDERS TABLE -->
+        <section class="bg-surface-container-low border-2 border-primary shadow-sm flex flex-col">
+          <div class="border-b-2 border-primary px-space-md py-3 bg-surface-container flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <span class="w-3 h-3 bg-primary"></span>
+              <span class="font-label-md text-label-md tracking-wider text-primary uppercase font-bold">REMINDERS</span>
+              <span class="ml-2 px-2 py-0.5 border border-primary text-primary font-mono text-xs bg-surface font-bold" id="queue-count-badge">0</span>
+            </div>
+          </div>
 
-          <!-- VOICE CAPTURE -->
-          <section class="bg-surface-container-low border border-primary flex flex-col">
-            <div class="border-b border-primary px-space-md py-2 bg-surface-container flex items-center gap-space-xs">
-              <span class="w-2.5 h-2.5 bg-primary"></span>
-              <span class="font-label-md text-label-md tracking-wider text-primary uppercase font-bold">VOICE INPUT</span>
+          <!-- TOOLBAR -->
+          <div class="border-b border-outline-variant bg-surface-container-high px-space-md py-2.5 flex flex-wrap items-center justify-between gap-space-sm">
+            <div class="flex items-center gap-2">
+              <button id="filter-all" onclick="setFilter('ALL')" class="font-label-sm text-label-sm border border-primary bg-primary text-on-primary px-3 py-1 uppercase font-bold" type="button">ALL</button>
+              <button id="filter-today" onclick="setFilter('TODAY')" class="font-label-sm text-label-sm border border-primary bg-surface text-on-surface px-3 py-1 uppercase hover:bg-surface-container font-bold" type="button">TODAY</button>
+              <button id="filter-pending" onclick="setFilter('PENDING')" class="font-label-sm text-label-sm border border-primary bg-surface text-on-surface px-3 py-1 uppercase hover:bg-surface-container font-bold" type="button">PENDING</button>
             </div>
-            <div class="p-space-lg flex flex-col items-center">
-              <!-- MIC BUTTON -->
-              <div class="my-space-md flex flex-col items-center">
-                <button class="group relative w-36 h-36 rounded-full border-2 border-primary bg-surface-variant flex items-center justify-center cursor-pointer transition-none active:translate-x-0.5 active:translate-y-0.5 outline-none focus:outline-2 focus:outline-primary" id="master-mic-btn" onclick="toggleListening()" type="button">
-                  <div class="w-32 h-32 rounded-full border border-dashed border-outline flex items-center justify-center">
-                    <div class="w-24 h-24 rounded-full border border-primary bg-surface-container flex flex-col items-center justify-center gap-1 group-hover:bg-primary group-hover:text-on-primary transition-none" id="mic-inner-core">
-                      <span class="material-symbols-outlined text-[32px] text-primary group-hover:text-on-primary select-none" id="mic-icon">mic</span>
-                      <span class="font-label-sm text-label-sm font-bold uppercase tracking-wider text-primary group-hover:text-on-primary" id="mic-core-label">REC</span>
-                    </div>
-                  </div>
-                  <div class="absolute top-1 left-1/2 -translate-x-1/2 w-1.5 h-3.5 bg-secondary" id="rotary-needle"></div>
-                </button>
-                <div class="mt-space-md text-center">
-                  <div class="font-label-lg text-label-lg font-bold uppercase tracking-wider text-primary" id="mic-status-hero">START LISTENING</div>
-                  <div class="font-label-sm text-label-sm text-on-surface-variant uppercase mt-1">Spacebar or click to speak</div>
-                </div>
-              </div>
-              <!-- STATUS STRIP -->
-              <div class="w-full border border-outline-variant bg-surface-container p-3 flex flex-col gap-2.5 mt-space-sm">
-                <div class="flex items-center justify-between">
-                  <div class="flex items-center gap-2">
-                    <span class="w-3 h-3 rounded-full bg-primary inline-block" id="hardware-led"></span>
-                    <span class="font-label-md text-label-md uppercase tracking-wider text-primary font-bold" id="hardware-status-text">READY</span>
-                  </div>
-                  <span class="font-code-md text-code-md text-on-surface-variant font-mono font-bold" id="session-timer">00:00.0</span>
-                </div>
-                <div class="flex items-center gap-space-md">
-                  <span class="font-label-sm text-label-sm uppercase text-on-surface-variant shrink-0 font-bold">LEVEL</span>
-                  <div class="flex-1 grid grid-cols-8 gap-1 h-3.5 border border-outline-variant p-0.5 bg-surface" id="vu-meter">
-                    <div class="vu-bar bg-outline-variant h-full"></div>
-                    <div class="vu-bar bg-outline-variant h-full"></div>
-                    <div class="vu-bar bg-outline-variant h-full"></div>
-                    <div class="vu-bar bg-outline-variant h-full"></div>
-                    <div class="vu-bar bg-outline-variant h-full"></div>
-                    <div class="vu-bar bg-outline-variant h-full"></div>
-                    <div class="vu-bar bg-outline-variant h-full"></div>
-                    <div class="vu-bar bg-outline-variant h-full"></div>
-                  </div>
-                  
-                </div>
-              </div>
+            <div class="flex items-center gap-2">
+              <button class="font-label-sm text-label-sm border border-primary bg-surface px-3 py-1 uppercase text-primary hover:bg-primary hover:text-on-primary active:translate-x-px active:translate-y-px transition-none font-bold flex items-center gap-1" onclick="refreshQueue()" type="button">
+                <span class="material-symbols-outlined text-[16px]">refresh</span>REFRESH
+              </button>
+              <button class="font-label-sm text-label-sm border border-primary bg-surface px-3 py-1 uppercase text-secondary hover:bg-secondary hover:text-on-secondary active:translate-x-px active:translate-y-px transition-none font-bold flex items-center gap-1" onclick="deleteLastReminder()" type="button">
+                <span class="material-symbols-outlined text-[16px]">delete</span>DELETE LAST
+              </button>
             </div>
-          </section>
+          </div>
 
-          <!-- TRANSCRIPT -->
-          <section class="bg-surface-container-low border border-primary flex flex-col">
-            <div class="border-b border-primary px-space-md py-2 bg-surface-container">
-              <span class="font-label-md text-label-md tracking-wider text-primary uppercase font-bold">TRANSCRIPT</span>
+          <!-- TABLE -->
+          <div class="w-full overflow-x-auto bg-surface min-h-[360px]" id="queue-container">
+            <div class="w-full" id="queue-table-view">
+              <table class="w-full text-left border-collapse">
+                <thead>
+                  <tr class="border-b-2 border-primary bg-surface-container font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider font-bold">
+                    <th class="py-3 px-space-md w-36">STATUS</th>
+                    <th class="py-3 px-space-md w-60">DUE</th>
+                    <th class="py-3 px-space-md">TASK</th>
+                    <th class="py-3 px-space-md text-right w-36">ACTIONS</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-outline-variant font-code-md text-code-md" id="reminder-tbody">
+                </tbody>
+              </table>
             </div>
-            <div class="p-space-md bg-surface">
-              <div class="border border-primary bg-surface p-space-md min-h-[88px] flex items-center">
-                <p class="font-code-md text-code-md text-primary leading-relaxed" id="transcript-content">
-                  Click the mic button or press Spacebar to speak.<span class="inline-block w-2 h-4 bg-secondary ml-1 animate-pulse"></span>
-                </p>
-              </div>
-            </div>
-          </section>
 
-          <!-- AGENT RESPONSE -->
-          <section class="bg-surface-container-low border border-primary flex flex-col">
-            <div class="border-b border-primary px-space-md py-2 bg-surface-container">
-              <span class="font-label-md text-label-md tracking-wider text-primary uppercase font-bold">RESPONSE</span>
-            </div>
-            <div class="p-space-md flex flex-col gap-space-md bg-surface">
-              <div class="border-l-3 border-secondary pl-space-md py-1">
-                <p class="font-headline-sm text-headline-sm text-primary leading-snug" id="agent-reply-text">
-                  Ready. Try saying "Remind me to water the plants tomorrow at 9 AM."
-                </p>
+            <!-- EMPTY STATE -->
+            <div class="hidden p-space-xl flex flex-col items-center justify-center text-center py-20" id="queue-empty-view">
+              <div class="w-14 h-14 border-2 border-primary flex items-center justify-center mb-space-md bg-surface-container">
+                <span class="material-symbols-outlined text-primary text-[32px]">inbox</span>
               </div>
-              <div class="flex flex-wrap gap-2" id="agent-param-chips">
-                <span class="border border-primary px-2 py-0.5 font-label-sm text-label-sm bg-surface-container font-mono uppercase font-bold">READY</span>
-              </div>
+              <div class="font-headline-sm text-headline-sm uppercase text-primary font-bold">NO REMINDERS IN QUEUE</div>
+              <p class="font-code-md text-code-md text-on-surface-variant max-w-md mt-2 mb-space-md leading-relaxed">
+                Press Spacebar or tap the mic to create your first reminder.
+              </p>
+              <button class="font-label-md text-label-md border-2 border-primary bg-primary text-on-primary px-5 py-2.5 uppercase hover:bg-surface hover:text-primary active:translate-x-px active:translate-y-px transition-none font-bold" onclick="toggleListening()" type="button">
+                START RECORDING [SPACE]
+              </button>
             </div>
-          </section>
-        </div>
 
-        <!-- RIGHT COLUMN: REMINDERS QUEUE (7 cols) -->
-        <div class="lg:col-span-7 flex flex-col gap-gutter">
+            <!-- ERROR STATE -->
+            <div class="hidden p-space-xl flex flex-col items-center justify-center text-center py-20 bg-secondary/5" id="queue-error-view">
+              <div class="w-14 h-14 border-2 border-secondary bg-secondary text-on-secondary flex items-center justify-center mb-space-md">
+                <span class="material-symbols-outlined text-[32px]">warning</span>
+              </div>
+              <div class="font-headline-sm text-headline-sm uppercase text-secondary font-bold">CONNECTION ERROR</div>
+              <p class="font-code-md text-code-md text-on-surface-variant max-w-md mt-2 mb-space-md leading-relaxed">
+                Could not load reminders. Please check your connection and try again.
+              </p>
+              <button class="font-label-md text-label-md border-2 border-primary bg-primary text-on-primary px-5 py-2.5 uppercase hover:bg-surface hover:text-primary active:translate-x-px active:translate-y-px transition-none font-bold" onclick="refreshQueue()" type="button">
+                TRY AGAIN
+              </button>
+            </div>
+          </div>
 
-          <!-- REMINDERS TABLE -->
-          <section class="bg-surface-container-low border border-primary flex flex-col">
-            <div class="border-b border-primary px-space-md py-2 bg-surface-container flex items-center justify-between">
-              <div class="flex items-center gap-space-xs">
-                <span class="w-2.5 h-2.5 bg-primary"></span>
-                <span class="font-label-md text-label-md tracking-wider text-primary uppercase font-bold">REMINDERS</span>
-              </div>
-              <div class="flex items-center gap-1 border border-outline-variant p-0.5 bg-surface">
-                <button class="font-label-sm text-label-sm px-2.5 py-1 uppercase bg-primary text-on-primary font-bold" id="btn-q-normal" onclick="setQueueView('normal')" type="button">ACTIVE</button>
-                <button class="font-label-sm text-label-sm px-2.5 py-1 uppercase text-on-surface hover:bg-surface-container-high" id="btn-q-empty" onclick="setQueueView('empty')" type="button">EMPTY</button>
-                <button class="font-label-sm text-label-sm px-2.5 py-1 uppercase text-on-surface hover:bg-surface-container-high" id="btn-q-error" onclick="setQueueView('error')" type="button">FAULT</button>
-              </div>
-            </div>
-            <!-- TOOLBAR -->
-            <div class="border-b border-outline-variant bg-surface-container-high px-space-md py-2 flex flex-wrap items-center justify-between gap-space-sm">
-              <div class="flex items-center gap-1.5">
-                <button id="filter-all" onclick="setFilter('ALL')" class="font-label-sm text-label-sm border border-primary bg-primary text-on-primary px-2.5 py-1 uppercase font-bold" type="button">ALL</button>
-                <button id="filter-today" onclick="setFilter('TODAY')" class="font-label-sm text-label-sm border border-primary bg-surface text-on-surface px-2.5 py-1 uppercase hover:bg-surface-container font-bold" type="button">TODAY</button>
-                <button id="filter-pending" onclick="setFilter('PENDING')" class="font-label-sm text-label-sm border border-primary bg-surface text-on-surface px-2.5 py-1 uppercase hover:bg-surface-container font-bold" type="button">PENDING</button>
-              </div>
-              <div class="flex items-center gap-2">
-                <button class="font-label-sm text-label-sm border border-primary bg-surface px-2.5 py-1 uppercase text-primary hover:bg-primary hover:text-on-primary active:translate-x-px active:translate-y-px transition-none font-bold" onclick="refreshQueue()" type="button">
-                  REFRESH
-                </button>
-                <button class="font-label-sm text-label-sm border border-primary bg-surface px-2.5 py-1 uppercase text-secondary hover:bg-secondary hover:text-on-secondary active:translate-x-px active:translate-y-px transition-none font-bold" onclick="deleteLastReminder()" type="button">
-                  DELETE LAST
-                </button>
-              </div>
-            </div>
-            <!-- TABLE -->
-            <div class="w-full overflow-x-auto bg-surface min-h-[300px]" id="queue-container">
-              <div class="w-full" id="queue-table-view">
-                <table class="w-full text-left border-collapse">
-                  <thead>
-                    <tr class="border-b border-primary bg-surface-container font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider font-bold">
-                      <th class="py-2.5 px-space-md w-32">STATUS</th>
-                      <th class="py-2.5 px-space-md w-40">DUE</th>
-                      <th class="py-2.5 px-space-md">TASK</th>
-                      <th class="py-2.5 px-space-md text-right w-28">ACTION</th>
-                    </tr>
-                  </thead>
-                  <tbody class="divide-y divide-outline-variant font-code-md text-code-md" id="reminder-tbody">
-                  </tbody>
-                </table>
-              </div>
-              <!-- EMPTY STATE -->
-              <div class="hidden p-space-xl flex flex-col items-center justify-center text-center py-16" id="queue-empty-view">
-                <div class="w-12 h-12 border border-primary flex items-center justify-center mb-space-md bg-surface-container">
-                  <span class="material-symbols-outlined text-primary text-[28px]">inbox</span>
-                </div>
-                <div class="font-headline-sm text-headline-sm uppercase text-primary font-bold">NO REMINDERS</div>
-                <p class="font-code-md text-code-md text-on-surface-variant max-w-sm mt-1.5 mb-space-md leading-relaxed">
-                  Speak or click a demo command to create your first reminder.
-                </p>
-                <button class="font-label-md text-label-md border border-primary bg-primary text-on-primary px-4 py-2 uppercase hover:bg-surface hover:text-primary active:translate-x-px active:translate-y-px transition-none font-bold" onclick="toggleListening()" type="button">
-                  START RECORDING
-                </button>
-              </div>
-              <!-- ERROR STATE -->
-              <div class="hidden p-space-xl flex flex-col items-center justify-center text-center py-16 bg-secondary/5" id="queue-error-view">
-                <div class="w-12 h-12 border border-secondary bg-secondary text-on-secondary flex items-center justify-center mb-space-md">
-                  <span class="material-symbols-outlined text-[28px]">warning</span>
-                </div>
-                <div class="font-headline-sm text-headline-sm uppercase text-secondary font-bold">CONNECTION ERROR</div>
-                <p class="font-code-md text-code-md text-on-surface-variant max-w-sm mt-2 mb-space-md leading-relaxed">
-                  Could not load reminders. Check that the server is running.
-                </p>
-                <button class="font-label-md text-label-md border border-primary bg-primary text-on-primary px-4 py-2 uppercase hover:bg-surface hover:text-primary active:translate-x-px active:translate-y-px transition-none font-bold" onclick="refreshQueue()" type="button">
-                  RETRY
-                </button>
-              </div>
-            </div>
-            <!-- FOOTER COUNT -->
-            <div class="border-t border-primary bg-surface-container px-space-md py-2 flex items-center justify-between text-on-surface-variant font-label-sm text-label-sm uppercase">
-              <span>Scheduler active</span>
-              <span class="font-mono text-primary font-bold" id="queue-count-display">0 REMINDERS</span>
-            </div>
-          </section>
+        </section>
 
-          <!-- DEMO COMMANDS -->
-          <section class="bg-surface-container-low border border-primary flex flex-col">
-            <div class="border-b border-primary px-space-md py-2 bg-surface-container">
-              <span class="font-label-md text-label-md tracking-wider text-primary uppercase font-bold">QUICK COMMANDS</span>
-            </div>
-            <div class="p-space-md flex flex-col divide-y divide-outline-variant bg-surface font-code-md text-code-md">
-              <div class="py-2.5 flex items-center justify-between gap-space-md hover:bg-surface-container px-space-sm group transition-none">
-                <span class="text-primary truncate font-mono">"Remind me to water the plants tomorrow at 9 AM."</span>
-                <button class="shrink-0 font-label-sm text-label-sm border border-primary px-2.5 py-1 bg-surface-container-low uppercase text-primary group-hover:bg-primary group-hover:text-on-primary active:translate-x-px active:translate-y-px transition-none font-bold" onclick="injectPrompt('Remind me to water the plants tomorrow at 9 AM.')" type="button">
-                  RUN →
-                </button>
-              </div>
-              <div class="py-2.5 flex items-center justify-between gap-space-md hover:bg-surface-container px-space-sm group transition-none">
-                <span class="text-primary truncate font-mono">"Remind me to take a break in 10 minutes."</span>
-                <button class="shrink-0 font-label-sm text-label-sm border border-primary px-2.5 py-1 bg-surface-container-low uppercase text-primary group-hover:bg-primary group-hover:text-on-primary active:translate-x-px active:translate-y-px transition-none font-bold" onclick="injectPrompt('Remind me to take a break in 10 minutes.')" type="button">
-                  RUN →
-                </button>
-              </div>
-              <div class="py-2.5 flex items-center justify-between gap-space-md hover:bg-surface-container px-space-sm group transition-none">
-                <span class="text-primary truncate font-mono">"What are my reminders?"</span>
-                <button class="shrink-0 font-label-sm text-label-sm border border-primary px-2.5 py-1 bg-surface-container-low uppercase text-primary group-hover:bg-primary group-hover:text-on-primary active:translate-x-px active:translate-y-px transition-none font-bold" onclick="injectPrompt('What are my reminders?')" type="button">
-                  RUN →
-                </button>
-              </div>
-              <div class="py-2.5 flex items-center justify-between gap-space-md hover:bg-surface-container px-space-sm group transition-none">
-                <span class="text-primary truncate font-mono">"Delete my last reminder."</span>
-                <button class="shrink-0 font-label-sm text-label-sm border border-primary px-2.5 py-1 bg-surface-container-low uppercase text-primary group-hover:bg-primary group-hover:text-on-primary active:translate-x-px active:translate-y-px transition-none font-bold" onclick="injectPrompt('Delete my last reminder.')" type="button">
-                  RUN →
-                </button>
-              </div>
-            </div>
-          </section>
-        </div>
       </div>
     </div>
   </main>
+
+  <!-- TWO-STATE FLOATING BOTTOM VOICE DOCK -->
+  <aside id="floating-voice-dock" class="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 w-[94%] max-w-3xl border-2 border-primary bg-surface-container shadow-2xl transition-all duration-300">
+    
+    <!-- EXPANDABLE DRAWER -->
+    <div id="voice-dock-drawer" class="overflow-hidden bg-surface transition-all duration-300">
+      <div class="p-4 border-b border-primary flex flex-col gap-3">
+        
+        <!-- TRANSCRIPT BOX -->
+        <div class="border border-primary bg-surface-container-low p-3 min-h-[64px] flex items-start justify-between gap-3">
+          <div class="flex-1">
+            <div class="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider mb-1 font-bold">Live Transcript</div>
+            <p class="font-code-md text-code-md text-primary leading-relaxed" id="transcript-content">
+              Click mic or press Spacebar to speak.<span class="inline-block w-2 h-3.5 bg-secondary ml-1 animate-pulse"></span>
+            </p>
+          </div>
+          <span class="material-symbols-outlined text-primary text-[20px] shrink-0 opacity-40">mic</span>
+        </div>
+
+        <!-- AGENT RESPONSE BOX -->
+        <div class="border-l-3 border-secondary pl-3 py-1 bg-surface flex flex-col gap-1.5">
+          <div class="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider font-bold">Agent Response</div>
+          <p class="font-headline-sm text-headline-sm text-primary leading-snug font-medium" id="agent-reply-text">
+            Ready. Try saying "Remind me to water the plants tomorrow at 9 AM."
+          </p>
+          <div class="flex flex-wrap gap-1.5 mt-0.5" id="agent-param-chips">
+            <span class="border border-primary px-2 py-0.5 font-label-sm text-label-sm bg-surface-container font-mono uppercase font-bold text-primary">READY</span>
+          </div>
+        </div>
+
+        <!-- QUICK COMMANDS PILLS -->
+        <div class="flex flex-col gap-1.5 pt-1 border-t border-outline-variant">
+          <div class="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider font-bold">Quick Actions</div>
+          <div class="flex flex-wrap gap-2">
+            <button onclick="injectPrompt('Remind me to water the plants tomorrow at 9 AM.')" type="button" class="font-label-sm text-label-sm border border-brand-blue bg-surface-container-low text-primary hover:bg-brand-blue hover:text-white px-2.5 py-1 uppercase font-bold transition-none">
+              "Water plants tomorrow 9 AM" →
+            </button>
+            <button onclick="injectPrompt('Remind me to take a break in 10 minutes.')" type="button" class="font-label-sm text-label-sm border border-brand-blue bg-surface-container-low text-primary hover:bg-brand-blue hover:text-white px-2.5 py-1 uppercase font-bold transition-none">
+              "Break in 10m" →
+            </button>
+            <button onclick="injectPrompt('What are my reminders?')" type="button" class="font-label-sm text-label-sm border border-brand-blue bg-surface-container-low text-primary hover:bg-brand-blue hover:text-white px-2.5 py-1 uppercase font-bold transition-none">
+              "What are my reminders?" →
+            </button>
+            <button onclick="injectPrompt('Delete my last reminder.')" type="button" class="font-label-sm text-label-sm border border-secondary bg-surface-container-low text-secondary hover:bg-secondary hover:text-white px-2.5 py-1 uppercase font-bold transition-none">
+              "Delete last" →
+            </button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ALWAYS-VISIBLE DOCK BAR (PILL) -->
+    <div id="voice-dock-bar" class="px-3.5 py-2 bg-surface-container flex items-center justify-between gap-3 select-none">
+      <!-- LEFT: MIC + STATUS -->
+      <div class="flex items-center gap-3">
+        <button class="relative w-11 h-11 rounded-full border-2 border-primary bg-surface-variant flex items-center justify-center cursor-pointer transition-none active:translate-x-0.5 active:translate-y-0.5 outline-none hover:bg-primary group" id="master-mic-btn" onclick="toggleListening()" type="button" title="Record Voice Reminder (Spacebar)">
+          <span class="material-symbols-outlined text-[24px] text-primary group-hover:text-on-primary select-none" id="mic-icon">mic</span>
+          <div class="absolute top-0.5 left-1/2 -translate-x-1/2 w-1.5 h-2.5 bg-secondary" id="rotary-needle"></div>
+        </button>
+        
+        <div class="flex flex-col">
+          <div class="flex items-center gap-1.5">
+            <span class="w-2.5 h-2.5 rounded-full bg-primary inline-block shrink-0" id="hardware-led"></span>
+            <span class="font-label-sm text-label-sm uppercase tracking-wider text-primary font-bold" id="hardware-status-text">READY</span>
+          </div>
+          <span class="font-code-md text-code-md text-on-surface-variant font-mono font-bold leading-none mt-0.5" id="session-timer">00:00.0</span>
+        </div>
+
+        <div class="hidden sm:grid grid-cols-8 gap-0.5 h-3.5 w-24 border border-outline-variant p-0.5 bg-surface ml-1" id="vu-meter">
+          <div class="vu-bar bg-outline-variant h-full"></div>
+          <div class="vu-bar bg-outline-variant h-full"></div>
+          <div class="vu-bar bg-outline-variant h-full"></div>
+          <div class="vu-bar bg-outline-variant h-full"></div>
+          <div class="vu-bar bg-outline-variant h-full"></div>
+          <div class="vu-bar bg-outline-variant h-full"></div>
+          <div class="vu-bar bg-outline-variant h-full"></div>
+          <div class="vu-bar bg-outline-variant h-full"></div>
+        </div>
+      </div>
+
+      <!-- CENTER: PROMPT -->
+      <div class="flex items-center gap-2 text-center">
+        <span class="font-label-md text-label-md font-bold uppercase tracking-wider text-primary cursor-pointer hover:underline" id="mic-status-hero" onclick="toggleListening()">
+          START LISTENING [SPACE]
+        </span>
+        <span class="hidden md:inline font-label-sm text-label-sm text-on-surface-variant uppercase">· [ESC] CLOSE</span>
+      </div>
+
+      <!-- RIGHT: EXPAND / COLLAPSE TOGGLE -->
+      <button id="dock-toggle-btn" onclick="toggleDock()" class="font-label-sm text-label-sm border border-primary px-2.5 py-1.5 bg-surface text-primary hover:bg-primary hover:text-on-primary font-bold flex items-center gap-1 uppercase transition-none" type="button" title="Expand / Collapse Voice Hub">
+        <span class="material-symbols-outlined text-[18px] transition-transform duration-200" id="dock-chevron">expand_less</span>
+        <span id="dock-toggle-label">EXPAND</span>
+      </button>
+    </div>
+  </aside>
 
   <!-- FOOTER -->
   <footer class="w-full bg-surface-container border-t border-primary">

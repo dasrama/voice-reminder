@@ -87,3 +87,26 @@ body, header, main, footer, section, div, table, thead, tbody, tr, th, td, butto
 .te-pulse {
   animation: te-pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
+
+/* Floating Voice Dock drawer expansion */
+#voice-dock-drawer {
+  max-height: 0;
+  opacity: 0;
+  pointer-events: none;
+  transition: max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+              opacity 0.25s ease-in-out,
+              padding 0.25s ease-in-out;
+}
+
+#voice-dock-drawer.dock-open {
+  max-height: 420px;
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* Group separator row styling */
+.group-separator-row {
+  border-top: 1px solid var(--color-primary);
+  border-bottom: 1px solid var(--color-outline-variant);
+  background-color: var(--color-surface-container-high);
+}
